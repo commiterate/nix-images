@@ -1,0 +1,60 @@
+#
+# GitHub Actions workflow configuration.
+#
+# https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions
+#
+
+name: Main/Source
+on:
+  workflow_call:
+run-name: Source
+concurrency:
+  group: ${{ github.ref }}/Source
+  cancel-in-progress: ${{ github.ref != github.event.repository.default_branch }}
+jobs:
+  build_images:
+    name: Build Images
+    strategy:
+      matrix:
+        # TODO: Switch to AArch64 and x86-64 Linux larger runners.
+        runs-on:
+          - ubuntu-latest
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/checkout@v4
+      # TODO: Build all images once ready. Excluding virtual machine images since they're ~5 GB.
+      - run: nix develop --command bash -c "bb oci-container && tree -I node_modules -h --dirsfirst"
+      # TODO: Split per-system artifacts so they don't overwrite each other.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: outputs
+          path: outputs
+          if-no-files-found: error
+          compression-level: 9
+          overwrite: true
+  build_infrastructure:
+    name: Build Infrastructure
+    needs: build_images
+    runs-on: ubuntu-latest
+    env:
+      # TODO: Remove once `build_images` can build both AArch64 and x86-64 images.
+      CI: false
+    steps:
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/checkout@v4
+      # TODO: Merge per-system artifacts.
+      - uses: actions/download-artifact@v4
+        with:
+          name: outputs
+          path: outputs
+      - run: nix develop --command bash -c "bb infrastructure && tree -I node_modules -h --dirsfirst"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: outputs
+          path: outputs
+          if-no-files-found: error
+          compression-level: 9
+          overwrite: true

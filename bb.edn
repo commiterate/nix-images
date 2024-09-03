@@ -1,0 +1,114 @@
+;;;
+;;; Babashka configuration.
+;;;
+;;; https://book.babashka.org#project-setup
+;;;
+{:tasks
+ {:requires
+  ([babashka.cli :as cli])
+
+  :init
+  (do
+    ; Parse CLI options.
+    (def cli-parse-options
+      {:spec
+       {:system
+        {:desc
+         "System for building system-specific outputs. This is a Nix system name (e.g. aarch64-linux, x86_64-linux). Defaults to the `system` environment variable (automatically set in Nix shells)."
+
+         :default
+         (System/getenv "system")}}})
+    (def cli-options
+      (cli/parse-opts
+        *command-line-args*
+        cli-parse-options)))
+
+  options
+  {:doc
+   "Show task options."
+
+   :task
+   (println
+     (cli/format-table
+       {:rows
+        (concat
+          [["option" "default" "description"]]
+          (cli/opts->table cli-parse-options))
+        :indent 0}))}
+
+  clean
+  {:doc
+   "Remove build outputs."
+
+   :task
+   (shell "rm -rf outputs")}
+
+  analyze
+  {:doc
+   "Run static analysis (format, lint)."
+
+   :task
+   (do
+     ; Nix.
+     (shell "nix fmt inputs flake.nix")
+     ; Clojure.
+     (shell "cljfmt fix")
+     (shell (str "clj-kondo --lint " (with-out-str (clojure "-Spath")) " --copy-configs --dependencies --parallel")))}
+
+  oci-container
+  {:doc
+   "Build the OCI container image."
+
+   :task
+   (do
+     (def output-directory (str "outputs/main/oci-container/" (cli-options :system)))
+     ; Clean.
+     (shell (str "rm -rf " output-directory))
+     ; Build.
+     (shell (str "nix build .#oci-container --out-link " output-directory "/nix.tar.gz --system " (cli-options :system) " --print-out-paths")))}
+
+  virtual-machine
+  {:doc
+   "Build the virtual machine image."
+
+   :task
+   (do
+     (def output-directory (str "outputs/main/virtual-machine/" (cli-options :system)))
+     ; Clean.
+     (shell (str "rm -rf " output-directory))
+     ; Build.
+     (shell (str "nix build .#virtual-machine --out-link " output-directory " --system " (cli-options :system) " --print-out-paths")))}
+
+  images
+  {:doc
+   "Build all images."
+
+   :depends
+   [oci-container
+    virtual-machine]}
+
+  infrastructure
+  {:doc
+   "Build infrastructure templates."
+
+   :task
+   (do
+     ; Other Node.js package managers have a prune function to remove unused modules in node_modules. Bun doesn't yet.
+     ;
+     ; https://github.com/oven-sh/bun/issues/3605
+     (shell "rm -rf node_modules")
+     ; Install dependencies.
+     (shell "bun install")
+     ; Clean.
+     (shell "rm -rf outputs/main/infrastructure")
+     ; Synthesize.
+     (shell "bunx cdk synthesize --quiet"))}
+
+  build
+  {:doc
+   "Build everything."
+
+   :depends
+   [analyze
+    images
+    infrastructure]}}}

@@ -1,0 +1,4 @@
+{
+	"app": "bunx nbb inputs/main/clojure/infrastructure/main.cljs",
+	"output": "outputs/main/infrastructure"
+}

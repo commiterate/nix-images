@@ -1,0 +1,10 @@
+{
+	"dependencies": {
+		"@aws-cdk/region-info": "^2",
+		"aws-cdk-lib": "^2"
+	},
+	"devDependencies": {
+		"aws-cdk": "^2",
+		"nbb": "^1"
+	}
+}

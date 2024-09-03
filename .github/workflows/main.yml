@@ -1,0 +1,25 @@
+#
+# GitHub Actions workflow configuration.
+#
+# https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions
+#
+
+name: Main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "*"
+jobs:
+  source:
+    name: Source
+    uses: ./.github/workflows/main_source.yml
+  production:
+    name: Production
+    if: ${{ github.ref_name == github.event.repository.default_branch }}
+    needs: source
+    uses: ./.github/workflows/main_environment.yml
+    with:
+      environment: Production

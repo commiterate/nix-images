@@ -1,0 +1,38 @@
+#
+# GitHub Actions workflow configuration.
+#
+# https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions
+#
+
+name: Main/Environment
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment name."
+        required: true
+        type: string
+run-name: ${{ inputs.environment }}
+concurrency:
+  group: ${{ inputs.environment }}
+jobs:
+  deploy:
+    name: Deploy
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: outputs
+          path: outputs
+      - run: nix develop --command bash -c "tree -I node_modules -h --dirsfirst"
+      # TODO: Enable once ready.
+      # - uses: aws-actions/configure-aws-credentials@main
+      #   with:
+      #     # Environment variables.
+      #     aws-region: ${{ vars.AWS_REGION }}
+      #     role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
+      # - run: nix develop --command bash -c "bun install && bunx cdk deploy ${{ inputs.environment }}"
